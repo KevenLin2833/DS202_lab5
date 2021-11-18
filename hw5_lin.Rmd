@@ -1,0 +1,128 @@
+---
+title: "hw5_Lin"
+author: "Keven Lin"
+date: 11/06/2021
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Liquor Sales in Iowa
+
+This dataset https://data.iowa.gov/Sales-Distribution/2021-Iowa-Liquor-Sales/cc6f-sgik contains the spirits purchase information of Iowa Class “E” liquor licensees by product and date of purchase for 2021. The dataset contains the orders of the liquors by retailer, e.g. Hyvee.
+
+## 1. Download data set
+```{r}
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+library("lobstr")
+library(dplyr)
+library(purrr)
+library(stringr)
+library(strex)
+liquorSale <- read.csv('2021_Iowa_Liquor_Sales.csv')
+#head(liquorSale)
+```
+
+
+## 2. Data Cleaning
+
+a. Convert the Date column into a date object
+```{r}
+liquorSale$Date = as.Date(liquorSale$Date, '%m/%d/%Y')
+str(liquorSale) 
+```
+b. Extract the longitude and latitude from the Store Location column, creating two new columns
+
+```{r}
+# remove all non numeric values from 
+temp = gsub("[A-Z]", '', liquorSale$Store.Location)
+
+# remove all ()
+temp = gsub("[()]", '', temp)
+
+#remove extra white space
+temp = gsub("\\s+"," ",temp)
+temp = trimws(temp)
+
+#replace space with comma
+temp = str_replace(temp, ' ', ',')
+liquorSale$temp = temp
+```
+
+```{r}
+#liquorSale
+liquorSale = liquorSale %>% separate(temp, c("longitude", "latitude"), sep = ',')
+#liquorSale
+```
+
+```{r}
+liquorSale$longitude = as.numeric(liquorSale$longitude)
+liquorSale$latitude = as.numeric(liquorSale$latitude)
+str(liquorSale)
+```
+c. (Optional) You may want to rename a few columns for your convenience.
+----- Don't need to ------
+
+## 3. First overview: Provide a visual breakdown of the liquor category (by Category Name). Include volume sold in the breakdown. Describe your figure. Which type of liquor is the most popular?
+
+```{r}
+options(repr.plot.width=100, repr.plot.height=100)
+liquorSale %>% group_by(Category.Name) %>% summarise(total_sold = sum(Bottles.Sold)) %>% ggplot(aes(x=Category.Name, y = total_sold)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90))
+```
+According to the graph, American Vodka is the most popular liquor. 
+
+## 4. Which day of the week has the most orders? Use a barchart to visualize the results. Explain the pattern and provide a reason why the pattern occurs.
+
+```{r}
+liquorSale$Day = weekdays(liquorSale$Date)
+```
+```{r}
+#liquorSale
+```
+```{r}
+liquorSale %>% group_by(Day) %>% summarise(total_sold = sum(Bottles.Sold)) %>% ggplot(aes(x=Day, y = total_sold)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90))
+```
+
+So based on the data, we can see that nearly all of the orders are made during the weekday and almost none are made on the weekend. This does make sense as most supplies in the US typically do not process orders on the weekend unless is an urgent circumstance. 
+
+## 5. Create a single plot for the monthly volumes sold. Each liquor category should be shown using a separate time series. Label the top 5 categories using text labels.
+
+```{r}
+liquorSale$Month = format(liquorSale$Date, '%m')
+```
+
+```{r}
+top5 = liquorSale %>% group_by(Category.Name) %>% summarise(total = sum(Bottles.Sold)) %>% arrange(-total) %>% select(Category.Name) %>% head(5)
+top5
+
+filterdata = liquorSale %>% filter(!Category.Name %in% t(top5))
+
+
+top5 = liquorSale %>% filter(Category.Name %in% t(top5))
+
+
+filterdata %>%
+  group_by(Category.Name, Month) %>% summarise(total_sold = sum(Bottles.Sold)) %>%
+  ggplot() +
+  geom_line(data = top5 %>% group_by(Category.Name, Month) %>% summarise(total_sold = sum(Bottles.Sold)), aes(group=Category.Name, x=Month, y = total_sold, color=Category.Name)) +
+  geom_line(aes(group=Category.Name, x=Month, y = total_sold),  stat="identity") 
+  
+```
+
+## 6. Which categories are spring graduation party favorites? Find at least one category.
+
+```{r}
+liquorSale$Month = months(liquorSale$Date)
+liquorSale %>% group_by(Category.Name) %>% filter(Month %in% c('May')) %>% summarise(total_sold = sum(Bottles.Sold)) %>% ggplot(aes(x=Category.Name, y = total_sold)) + geom_bar(stat="identity") + theme(axis.text.x = element_text(angle = 90))
+```
+
+From the graph, we can see that American Vodka is the most popular spring graduation drink. 
+
+## 7. (Optional) We would like to compare the liquor orders in each month. Create a complex time series plot of the volume sold in each day. Each month should be shown in a separate panel. Label the day of the week for the x-axis tick labels. Which months have more orders than the others?
+
+[Hint: Each panel should show a time series, where the x-axis stands for date, and y-axis stands for the volume sold. The tick labels of the x-axis, however, should show the day of week but not date. E.g., if the x-axis data were Jan 01, 2021 and Jan 10, 2021, then the re-labeled ticks should show Friday and Sunday for these two dates instead.]
